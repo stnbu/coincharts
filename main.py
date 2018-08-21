@@ -7,14 +7,17 @@ import dbm
 import collections
 import json
 import urllib
+import logging
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class RESTException(Exception):
     pass
 
 
 API_KEY = open('API_KEY').read().strip()
-URL_BASE = 'https://rest.coinapi.io/v1/'
 DB_NAME = 'coinapi.cache'
 
 
@@ -77,27 +80,54 @@ DB = SillyDB()
 
 def rr(*args):
 
-    location, query = args
+    try:
+        location, query = args
+    except ValueError:
+        location, = args
+        query = ''
 
-    if args in DB:
-        code, text = DB[args]
+    key = location, query
+
+    if key in DB:
+        logger.debug('Cache Hit: {}/{}'.format(location, query))
+        code, text = DB[key]
         if code != 200:
             raise RESTException('[cached] {}'.format(text))
         return text
 
-    url = URL_BASE + location
+    logger.debug('Cache Miss: {}/{}'.format(location, query))
+
+    url = urllib.parse.urlunparse(('https', 'rest.coinapi.io/v1', location, '', query, ''))
     headers = {'X-CoinAPI-Key': API_KEY}
+    logger.debug('Fetching URL: {}'.format(url))
     response = requests.get(url, headers=headers)
 
+    api_limit_info = """
+    X-RateLimit-Limit: {X-RateLimit-Limit}	Request limit allocated in the time window.
+    X-RateLimit-Remaining: {X-RateLimit-Remaining}	The number of requests left for the time window.
+    X-RateLimit-Request-Cost: {X-RateLimit-Request-Cost}	The number of requests used to generate current HTTP response.
+    X-RateLimit-Reset: {X-RateLimit-Reset}	The remaining window before the rate limit resets
+    """.format(**response.headers)
+    logger.debug('API Limit Info:' + api_limit_info)
+
     if response.status_code != 200:
-        DB[args] = response.status_code, response.reason
+        DB[key] = response.status_code, response.reason
         raise RESTException(response.reason)
 
     code, text = response.status_code, response.json()
-    DB[args] = code, text
+    DB[key] = code, text
     return text
 
 
 if __name__ == '__main__':
 
-    rr('quotes/current', '')
+    assets = rr('assets', '')
+    quotes = rr('quotes/current', '')
+    symbols = rr('symbols', '')
+    foo = rr('symbols', 'filter_symbol_id=BTC')
+    usd_in_btc_now = rr('exchangerate/USD/BTC', '')  # how many BTC is one USD
+    btc_in_usd_now = rr('exchangerate/BTC/USD', '')  # how many USD is one BTC
+    periods = rr('ohlcv/periods', '')
+    btc_history_example2 = rr('ohlcv/BITSTAMP_SPOT_BTC_USD/history', 'period_id=1MIN&time_start=2016-01-02T00:00:00')
+    latest_trades = rr('trades/latest')
+    orderbooks_current = rr('orderbooks/current')
