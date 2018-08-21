@@ -25,12 +25,12 @@ class SillyDB(collections.abc.MutableMapping):
 
     is transparently stored in the dbm as
 
-    >>> db[location+'____'+query] = str(code_int) + json.dumps(dictlike_data)
+    >>> db[location+'\t'+query] = str(code_int) + json.dumps(dictlike_data)
 
     The point is to not use up my API quota needlessly, not performance or robustness...
     """
 
-    _key_sep = '____'  # this is pretty silly...
+    _key_sep = '\t'
 
     def __init__(self):
         self.data = dbm.open(DB_NAME, 'c')
