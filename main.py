@@ -6,6 +6,7 @@ import requests
 import dbm
 import collections
 import json
+import urllib
 
 
 class RESTException(Exception):
@@ -35,7 +36,9 @@ class SillyDB(collections.abc.MutableMapping):
         self.data = dbm.open(DB_NAME, 'c')
 
     def _enc_key(self, location, query):
-        return location + self._key_sep + query
+        # "normalize" location, query
+        url = urllib.parse.urlparse(urllib.parse.urlunparse(('', '', location, '', query, '')))
+        return url.path + self._key_sep + url.query
 
     def _dec_key(self, key):
         return key.split(self._key_sep)
