@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+
 class RESTException(Exception):
     pass
 
@@ -126,6 +127,7 @@ def rr(*args):
     DB[key] = code, text
     return text
 
+
 def ws_feed_worker():
 
     db = redis.StrictRedis(unix_socket_path='/tmp/redis.sock')
@@ -135,17 +137,17 @@ def ws_feed_worker():
         type='hello',
         apikey=API_KEY,
         heartbeat=True,
-        subscribe_data_type = ['trade'],
+        subscribe_data_type=['trade'],
     )))
 
     try:
         while True:
-          text = ws.recv()
-          logger.debug('received: {}'.format(text))
-          data = json.loads(text)
-          if 'symbol_id' not in data:
-              continue
-          db.lpush(data['symbol_id'], text)
+            text = ws.recv()
+            logger.debug('received: {}'.format(text))
+            data = json.loads(text)
+            if 'symbol_id' not in data:
+                continue
+            db.lpush(data['symbol_id'], text)
     finally:
         ws.close()
 
@@ -162,7 +164,8 @@ if __name__ == '__main__':
     btc_history_example2 = rr('ohlcv/BITSTAMP_SPOT_BTC_USD/history', 'period_id=1MIN&time_start=2016-01-02T00:00:00')
     latest_trades = rr('trades/latest')
     orderbooks_current = rr('orderbooks/current')
-    btc_history_example2_100000 = rr('ohlcv/BITSTAMP_SPOT_BTC_USD/history', 'period_id=1MIN&time_start=2016-01-02T00:00:00&limit=100000')
+    btc_history_example2_100000 = rr('ohlcv/BITSTAMP_SPOT_BTC_USD/history',
+                                     'period_id=1MIN&time_start=2016-01-02T00:00:00&limit=100000')
 
     points = [x['price_high'] for x in btc_history_example2_100000]
 
