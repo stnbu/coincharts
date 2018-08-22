@@ -8,6 +8,9 @@ import collections
 import json
 import urllib
 import logging
+import websocket
+
+import redis
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -102,12 +105,17 @@ def rr(*args):
     logger.debug('Fetching URL: {}'.format(url))
     response = requests.get(url, headers=headers)
 
+    headers = dict(response.headers)
+    for thing in ['Limit', 'Remaining', 'Request-Cost', 'Reset']:
+        header_key = 'X-RateLimit-' + thing
+        headers.setdefault(header_key, None)
+
     api_limit_info = """
     X-RateLimit-Limit: {X-RateLimit-Limit}	Request limit allocated in the time window.
     X-RateLimit-Remaining: {X-RateLimit-Remaining}	The number of requests left for the time window.
     X-RateLimit-Request-Cost: {X-RateLimit-Request-Cost}	The number of requests used to generate current HTTP response.
     X-RateLimit-Reset: {X-RateLimit-Reset}	The remaining window before the rate limit resets
-    """.format(**response.headers)
+    """.format(**headers)
     logger.debug('API Limit Info:' + api_limit_info)
 
     if response.status_code != 200:
@@ -117,6 +125,29 @@ def rr(*args):
     code, text = response.status_code, response.json()
     DB[key] = code, text
     return text
+
+def ws_feed_worker():
+
+    db = redis.StrictRedis(unix_socket_path='/tmp/redis.sock')
+
+    ws = websocket.create_connection("wss://ws.coinapi.io/v1")
+    ws.send(json.dumps(dict(
+        type='hello',
+        apikey=API_KEY,
+        heartbeat=True,
+        subscribe_data_type = ['trade'],
+    )))
+
+    try:
+        while True:
+          text = ws.recv()
+          logger.debug('received: {}'.format(text))
+          data = json.loads(text)
+          if 'symbol_id' not in data:
+              continue
+          db.lpush(data['symbol_id'], text)
+    finally:
+        ws.close()
 
 
 if __name__ == '__main__':
@@ -134,3 +165,5 @@ if __name__ == '__main__':
     btc_history_example2_100000 = rr('ohlcv/BITSTAMP_SPOT_BTC_USD/history', 'period_id=1MIN&time_start=2016-01-02T00:00:00&limit=100000')
 
     points = [x['price_high'] for x in btc_history_example2_100000]
+
+    ws_feed_worker()
