@@ -131,3 +131,6 @@ if __name__ == '__main__':
     btc_history_example2 = rr('ohlcv/BITSTAMP_SPOT_BTC_USD/history', 'period_id=1MIN&time_start=2016-01-02T00:00:00')
     latest_trades = rr('trades/latest')
     orderbooks_current = rr('orderbooks/current')
+    btc_history_example2_100000 = rr('ohlcv/BITSTAMP_SPOT_BTC_USD/history', 'period_id=1MIN&time_start=2016-01-02T00:00:00&limit=100000')
+
+    points = [x['price_high'] for x in btc_history_example2_100000]
