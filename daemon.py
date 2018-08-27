@@ -42,7 +42,7 @@ class PriceSeries(object):
     PRICE = 'price_close'
 
     # this is the beginning of time if we don't have any local data
-    first_date = '2014-01-01T00:00:00.0000000Z'
+    first_date = '2018-01-09T00:00:00.0000000Z'
 
     column_names = [n for n, _ in schema]
     row_template = 'INSERT INTO {{symbol_id}}({column_names}) values ({q_marks});'.\
@@ -126,8 +126,10 @@ class PriceSeries(object):
         first_fetch_date = last_date + datetime.timedelta(hours=6)
         query_data = dict(self.query_template)
         query_data['time_start'] = first_fetch_date
+        query_data['limit'] = 1500  # just over one year of records @6hrs
         url = self.get_url(query_data)
         response = requests.get(url, headers=self.headers)
+        print(response.headers['X-RateLimit-Remaining'])
         return response.json()
 
     def get_last_date_from_store(self):
@@ -151,7 +153,7 @@ class PriceSeries(object):
             for key, value in row.items():
                 index = self.column_names.index(key)
                 values[index] = value
-            assert all(map(lambda x: x is not None, values)), 'Tied to insert None: {}'.format(values)
+            assert all(map(lambda x: x is not None, values)), 'Tried to insert None: {}'.format(values)
             insert_rows.append(values)
         if insert_rows:
             try:
@@ -167,5 +169,16 @@ class PriceSeries(object):
 
 if __name__ == '__main__':
 
-    ps = PriceSeries('BITSTAMP_SPOT_BTC_USD')
-    ps.update()
+    symbols = [
+        'BITSTAMP_SPOT_BTC_USD',
+        'BITSTAMP_SPOT_XRP_USD',
+        'BITSTAMP_SPOT_ETH_USD',
+        'BITSTAMP_SPOT_LTC_USD',
+        'BITSTAMP_SPOT_EUR_USD',
+        'BITSTAMP_SPOT_BCH_USD'
+    ]
+
+    for symbol_id in symbols:
+        print(symbol_id)
+        ps = PriceSeries(symbol_id)
+        ps.update()
