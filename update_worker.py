@@ -65,6 +65,12 @@ class PriceSeries(object):
 
     @classmethod
     def connection(cls):
+        """The sqlite connection is a class singleton.
+
+        https://www.sqlite.org/faq.html#q5
+
+        Since the updates are done sequentially, we're ok.
+        """
         if cls._connection is None:
             logger.debug('connecting to database {}'.format(cls._sqlite_db))
             cls._connection = sqlite3.connect(cls._sqlite_db)
@@ -248,5 +254,4 @@ if __name__ == '__main__':
         ):
             main(dir_path)
     else:
-        print('blarg')
         main(dir_path)
