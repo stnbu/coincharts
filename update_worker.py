@@ -21,6 +21,7 @@ import daemon.pidfile
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+
 class PriceSeries(object):
 
     query_template = dict(
@@ -60,10 +61,24 @@ class PriceSeries(object):
         )
     _sqlite_db = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'db.sqlite3')
 
+    _connection = None
+
+    @classmethod
+    def connection(cls):
+        if cls._connection is None:
+            logger.debug('connecting to database {}'.format(cls._sqlite_db))
+            cls._connection = sqlite3.connect(cls._sqlite_db)
+
+            def _cleanup():
+                logger.debug('performing at-exit cleanup (closing database)')
+                cls._connection.commit()
+                cls._connection.close()
+            atexit.register(_cleanup)
+        return cls._connection
+
     def __init__(self, symbol_id):
         logger.debug('creating PriceSeries object for {}'.format(symbol_id))
         self.symbol_id = symbol_id
-        self._connection = None
         self._create_store()
         self.row_template = self.row_template.format(symbol_id=self.symbol_id)
 
@@ -93,24 +108,11 @@ class PriceSeries(object):
         create_table.append(fields)
         create_table.append(');')
         create_table = '\n'.join(create_table)
-        cursor = self.connection.cursor()
+        cursor = self.connection().cursor()
         cursor.execute(create_table.format(
             symbol_id=self.symbol_id
         ))
-        self.connection.commit()
-
-    @property
-    def connection(self):
-        if self._connection is None:
-            logger.debug('connecting to database {}'.format(self._sqlite_db))
-            self._connection = sqlite3.connect(self._sqlite_db)
-
-            def _cleanup():
-                logger.debug('performing at-exit cleanup (closing database)')
-                self._connection.commit()
-                self._connection.close()
-            atexit.register(_cleanup)
-        return self._connection
+        self.connection().commit()
 
     def get_normalized_datetime(self, dt):
         if not isinstance(dt, datetime.datetime):
@@ -136,7 +138,8 @@ class PriceSeries(object):
 
         now = datetime.datetime.now(tz=pytz.UTC)
         if now - last_date < datetime.timedelta(hours=6):
-            logger.debug('it has not been 6 hourse since {}. not fetching anything.'.format(last_date))
+            logger.debug('the time is now {}. it has not been 6 hourse since {}. not fetching anything.'
+                         .format(now.isoformat(), last_date))
             return {}
 
         first_fetch_date = last_date + datetime.timedelta(hours=6)
@@ -155,7 +158,7 @@ class PriceSeries(object):
             the_columns=', '.join((self.TIME, self.PRICE)),
             symbol_id=self.symbol_id,
         )
-        cursor = self.connection.cursor()
+        cursor = self.connection().cursor()
         cursor.execute(sql)
         results = cursor.fetchall()
         if len(results) == 0:
@@ -176,17 +179,24 @@ class PriceSeries(object):
             insert_rows.append(values)
         if insert_rows:
             try:
-                cursor = self.connection.cursor()
+                cursor = self.connection().cursor()
                 cursor.executemany(self.row_template, insert_rows)
             finally:
                 logger.debug('done inserting. committing...')
-                self.connection.commit()
+                self.connection().commit()
 
     def update(self):
         data = self.fetch()
         self.insert(data)
 
+
 def main(dir_path):
+
+    # when I'm a daemon, log all exceptions
+    def exception_handler(type_, value, tb):
+        logger.exception('uncaught exception: {}'.format(str(value)))
+        sys.__excepthook__(type_, value, tb)
+    sys.excepthook = exception_handler
 
     fh = logging.FileHandler(os.path.join(dir_path, 'logs'))
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -205,24 +215,38 @@ def main(dir_path):
 
     series = []
     for symbol_id in symbols:
-        ps = PriceSeries(symbol_id)
-        series.append()
+        series.append(PriceSeries(symbol_id))
 
     while True:
         for ps in series:
             ps.update()
-        logger.info('sleeping for 18000s == 5hrs')
-        time.sleep(18000)
+        logger.info('sleeping for 3600s')
+        time.sleep(3600)
+
 
 if __name__ == '__main__':
 
-    script_name, dir_path = sys.argv
+    if len(sys.argv) == 1:
+        print('usage: {} [--daemon] <directory>'.format(os.path.basename(__file__)))
+        sys.exit(1)
+
+    # no need to involve argparse for something this simple
+    DAEMON = True
+    if '--daemon' in sys.argv:
+        script_name, _, dir_path = sys.argv
+    else:
+        script_name, dir_path = sys.argv
+        DAEMON = False
 
     logger.debug('starting daemon {} using path {}'.format(script_name, dir_path))
 
-    with daemon.DaemonContext(
-            working_directory=dir_path,
-            pidfile=daemon.pidfile.PIDLockFile(os.path.join(dir_path, 'pid')),
+    if DAEMON:
+        with daemon.DaemonContext(
+                working_directory=dir_path,
+                pidfile=daemon.pidfile.PIDLockFile(os.path.join(dir_path, 'pid')),
 
-    ):
+        ):
+            main(dir_path)
+    else:
+        print('blarg')
         main(dir_path)
