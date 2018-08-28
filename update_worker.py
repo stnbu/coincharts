@@ -3,6 +3,7 @@
 """
 
 import os
+import sys
 import datetime
 import pytz
 from dateutil.parser import parse as parse_dt
@@ -11,7 +12,14 @@ import json
 import atexit
 import urllib
 import requests
+import logging
+import time
 
+import daemon
+import daemon.pidfile
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class PriceSeries(object):
 
@@ -53,6 +61,7 @@ class PriceSeries(object):
     _sqlite_db = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'db.sqlite3')
 
     def __init__(self, symbol_id):
+        logger.debug('creating PriceSeries object for {}'.format(symbol_id))
         self.symbol_id = symbol_id
         self._connection = None
         self._create_store()
@@ -74,6 +83,7 @@ class PriceSeries(object):
         return url
 
     def _create_store(self):
+        logger.debug('creating table {} (if it does not exist)'.format(self.symbol_id))
         create_table = ['CREATE TABLE IF NOT EXISTS {symbol_id} (']
         #fields = ['id integer PRIMARY KEY']
         fields = []
@@ -92,9 +102,11 @@ class PriceSeries(object):
     @property
     def connection(self):
         if self._connection is None:
+            logger.debug('connecting to database {}'.format(self._sqlite_db))
             self._connection = sqlite3.connect(self._sqlite_db)
 
             def _cleanup():
+                logger.debug('performing at-exit cleanup (closing database)')
                 self._connection.commit()
                 self._connection.close()
             atexit.register(_cleanup)
@@ -116,11 +128,15 @@ class PriceSeries(object):
     def fetch(self):
         last_date = self.get_last_date_from_store()
         if last_date is None:
+            logger.debug('last date for {} not found. using default of {}'.format(self.symbol_id, self.first_date))
             last_date = parse_dt(self.first_date)
+        else:
+            logger.debug('date of last record for {} is {}'.format(self.symbol_id, last_date))
         self.validate_datetime_object(last_date)
 
         now = datetime.datetime.now(tz=pytz.UTC)
         if now - last_date < datetime.timedelta(hours=6):
+            logger.debug('it has not been 6 hourse since {}. not fetching anything.'.format(last_date))
             return {}
 
         first_fetch_date = last_date + datetime.timedelta(hours=6)
@@ -128,8 +144,10 @@ class PriceSeries(object):
         query_data['time_start'] = first_fetch_date
         query_data['limit'] = 1500  # just over one year of records @6hrs
         url = self.get_url(query_data)
+        logger.debug('getting url {}'.format(url))
         response = requests.get(url, headers=self.headers)
-        print(response.headers['X-RateLimit-Remaining'])
+        logger.info('Account has {} more API requests for this time period'.format(
+            response.headers['X-RateLimit-Remaining']))
         return response.json()
 
     def get_last_date_from_store(self):
@@ -147,6 +165,7 @@ class PriceSeries(object):
         return last_date
 
     def insert(self, data):
+        logger.debug('inserting {} records into table {}'.format(len(data), self.symbol_id))
         insert_rows = []
         for row in data:
             values = [None] * len(self.schema)
@@ -160,14 +179,20 @@ class PriceSeries(object):
                 cursor = self.connection.cursor()
                 cursor.executemany(self.row_template, insert_rows)
             finally:
+                logger.debug('done inserting. committing...')
                 self.connection.commit()
 
     def update(self):
         data = self.fetch()
         self.insert(data)
 
+def main(dir_path):
 
-if __name__ == '__main__':
+    fh = logging.FileHandler(os.path.join(dir_path, 'logs'))
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    fh.setLevel(logging.DEBUG)
+    logger.addHandler(fh)
 
     symbols = [
         'BITSTAMP_SPOT_BTC_USD',
@@ -178,7 +203,22 @@ if __name__ == '__main__':
         'BITSTAMP_SPOT_BCH_USD'
     ]
 
-    for symbol_id in symbols:
-        print(symbol_id)
-        ps = PriceSeries(symbol_id)
-        ps.update()
+    while True:
+        for symbol_id in symbols:
+            ps = PriceSeries(symbol_id)
+            ps.update()
+        logger.info('sleeping for 18000s == 5hrs')
+        time.sleep(18000)
+
+if __name__ == '__main__':
+
+    script_name, dir_path = sys.argv
+
+    logger.debug('starting daemon {} using path {}'.format(script_name, dir_path))
+
+    with daemon.DaemonContext(
+            working_directory=dir_path,
+            pidfile=daemon.pidfile.PIDLockFile(os.path.join(dir_path, 'pid')),
+
+    ):
+        main(dir_path)
