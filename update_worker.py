@@ -203,9 +203,13 @@ def main(dir_path):
         'BITSTAMP_SPOT_BCH_USD'
     ]
 
+    series = []
+    for symbol_id in symbols:
+        ps = PriceSeries(symbol_id)
+        series.append()
+
     while True:
-        for symbol_id in symbols:
-            ps = PriceSeries(symbol_id)
+        for ps in series:
             ps.update()
         logger.info('sleeping for 18000s == 5hrs')
         time.sleep(18000)
