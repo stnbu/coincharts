@@ -13,16 +13,16 @@ import datetime
 import pytz
 from dateutil.parser import parse as parse_dt
 import json
-import atexit
 import urllib
 import requests
 import logging
 import time
 
+from sqlalchemy import Integer, String, Float
 import daemon
 import daemon.pidfile
 
-import db
+from mutil import simple_alchemy
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -68,14 +68,7 @@ class PriceSeries(object):
         if cls._session is not None:
             return cls._session
         db_path = os.path.join(os.path.abspath(DIR_PATH), 'db.sqlite3')
-        db_uri = 'sqlite:///' + db_path
-        engine = db.create_engine(db_uri, echo=False)
-        db.Base.metadata.create_all(engine)
-        cls._session = db.sessionmaker(bind=engine)()
-
-        def cleanup():
-            cls._session.close()
-        atexit.register(cleanup)
+        cls._session = simple_alchemy.get_session(db_path)
         return cls._session
 
     @classmethod
@@ -102,7 +95,19 @@ class PriceSeries(object):
     def __init__(self, symbol_id):
         logger.debug('creating PriceSeries object for {}'.format(symbol_id))
         self.symbol_id = symbol_id
-        self.data = db.get_symbol_class(symbol_id)
+        schema = [
+            ('time_period_start', String),
+            ('time_period_end', String),
+            ('time_open', String),
+            ('time_close', String),
+            ('price_open', Float),
+            ('price_high', Float),
+            ('price_low', Float),
+            ('price_close', Float),
+            ('volume_traded', Float),
+            ('trades_count', Integer),
+        ]
+        self.data = simple_alchemy.get_table_class(symbol_id, schema=schema)
 
     def get_prices_since(self, start_dt):
         """Get prices for this PriceSeries where datetime is greater or equal to `start_dt`
