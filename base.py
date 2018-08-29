@@ -7,7 +7,7 @@ import sys
 
 # FIXME
 # beautiful HACK until I get some stuff figured out.
-sys.path.insert(0, '../mutil')
+sys.path.insert(0, '../mutils')
 
 import datetime
 import pytz
@@ -221,6 +221,6 @@ def main(dir_path, daemon=True):
 
 if __name__ == '__main__':
 
-    from mutil.simple_daemon import daemonize
+    from mutils.simple_daemon import daemonize
 
     daemonize(main)
