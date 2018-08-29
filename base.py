@@ -4,6 +4,11 @@
 
 import os
 import sys
+
+# FIXME
+# beautiful HACK until I get some stuff figured out.
+sys.path.insert(0, '../mutil')
+
 import datetime
 import pytz
 from dateutil.parser import parse as parse_dt
@@ -58,6 +63,7 @@ class PriceSeries(object):
 
     _session = None
 
+    @classmethod
     def get_db_session(cls):
         if cls._session is not None:
             return cls._session
@@ -179,12 +185,8 @@ class PriceSeries(object):
 
 def main(dir_path, daemon=True):
 
-    if daemon:
-        # when I'm a daemon, log all exceptions
-        def exception_handler(type_, value, tb):
-            logger.exception('uncaught exception: {}'.format(str(value)))
-            sys.__excepthook__(type_, value, tb)
-        sys.excepthook = exception_handler
+    global DIR_PATH
+    DIR_PATH = dir_path
 
     fh = logging.FileHandler(os.path.join(dir_path, 'logs'))
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -214,26 +216,6 @@ def main(dir_path, daemon=True):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) == 1:
-        print('usage: {} [--daemon] <directory>'.format(os.path.basename(__file__)))
-        sys.exit(1)
+    from mutil.simple_daemon import daemonize
 
-    # no need to involve argparse for something this simple
-    DAEMON = True
-    if '--daemon' in sys.argv:
-        script_name, _, DIR_PATH = sys.argv
-    else:
-        script_name, DIR_PATH = sys.argv
-        DAEMON = False
-
-    logger.debug('starting daemon {} using path {}'.format(script_name, DIR_PATH))
-
-    if DAEMON:
-        with daemon.DaemonContext(
-                working_directory=DIR_PATH,
-                pidfile=daemon.pidfile.PIDLockFile(os.path.join(DIR_PATH, 'pid')),
-
-        ):
-            main(DIR_PATH, daemon=True)
-    else:
-        main(DIR_PATH, daemon=False)
+    daemonize(main)
