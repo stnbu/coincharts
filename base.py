@@ -7,7 +7,6 @@ import sys
 import datetime
 import pytz
 from dateutil.parser import parse as parse_dt
-import sqlite3
 import json
 import atexit
 import urllib
@@ -18,8 +17,12 @@ import time
 import daemon
 import daemon.pidfile
 
+import db
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+DIR_PATH = None
 
 
 class PriceSeries(object):
@@ -53,41 +56,25 @@ class PriceSeries(object):
     # this is the beginning of time if we don't have any local data
     first_date = '2018-01-09T00:00:00.0000000Z'
 
-    column_names = [n for n, _ in schema]
-    row_template = 'INSERT INTO {{symbol_id}}({column_names}) values ({q_marks});'.\
-        format(
-            column_names=', '.join(column_names),
-            q_marks=', '.join(['?']*len(schema))
-        )
+    _session = None
 
-    # todo. this needs to be calculated based on the path given by user
-    _sqlite_db = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'db.sqlite3')
+    def get_db_session(cls):
+        if cls._session is not None:
+            return cls._session
+        db_path = os.path.join(os.path.abspath(DIR_PATH), 'db.sqlite3')
+        db_uri = 'sqlite:///' + db_path
+        engine = db.create_engine(db_uri, echo=False)
+        db.Base.metadata.create_all(engine)
+        cls._session = db.sessionmaker(bind=engine)()
 
-    _connection = None
-
-    @classmethod
-    def connect(cls):
-        """The sqlite connection is a class singleton.
-
-        https://www.sqlite.org/faq.html#q5
-
-        Since the updates are done sequentially, we're ok.
-        """
-        if cls._connection is None:
-            logger.debug('connecting to database {}'.format(cls._sqlite_db))
-            cls._connection = sqlite3.connect(cls._sqlite_db)
-
-            def _cleanup():
-                logger.debug('performing at-exit cleanup (closing database)')
-                cls._connection.commit()
-                cls._connection.close()
-            atexit.register(_cleanup)
-        return cls._connection
+        def cleanup():
+            cls._session.close()
+        atexit.register(cleanup)
+        return cls._session
 
     @classmethod
     def validate_datetime_object(cls, dt):
         assert dt.tzname() == 'UTC', 'tzname==`{}`. Expected `UTC`'.format(dt.tzname())
-        assert dt.hour in (0, 6, 12, 18)
         assert not dt.hour % 6, 'hour==`{}` not a multiple of `6`'.format(dt.hour)
         for attr in 'minute', 'second', 'microsecond':
             value = getattr(dt, attr)
@@ -100,54 +87,32 @@ class PriceSeries(object):
         return dt.strftime(cls.date_format_template)
 
     @classmethod
-    def round_up(cls, dt):
+    def round_up_hour(cls, dt):
         hour_increment = 6 - dt.hour % 6
         dt += datetime.timedelta(hours=hour_increment)
         dt = dt.replace(minute=0, second=0, microsecond=0)
         return dt
 
-    def __init__(self, symbol_id, create_store=True):
+    def __init__(self, symbol_id):
         logger.debug('creating PriceSeries object for {}'.format(symbol_id))
         self.symbol_id = symbol_id
-        self.row_template = self.row_template.format(symbol_id=self.symbol_id)
-        if create_store:
-            self._create_store()
+        self.data = db.get_symbol_class(symbol_id)
 
     def get_prices_since(self, start_dt):
         """Get prices for this PriceSeries where datetime is greater or equal to `start_dt`
         """
-        # Since sqlite does not have native date times, we get the rowid for the row containing
-        # date `start_dt` and then do a second SQL query for rows with that ID or greater.
+        # Since sqlite does not have native dates/times, we get the id for the row containing
+        # date (string) `start_dt` and then do a second SQL query for rows with that ID or greater.
         try:
             start_dt = parse_dt(start_dt)
         except TypeError:
             pass
         start_dt = self.get_normalized_datetime(self.round_up(start_dt))
-        sql = 'SELECT _ROWID_ FROM {symbol_id} WHERE {TIME} = \'{start_dt}\' LIMIT 1;'.format(
-            symbol_id=self.symbol_id,
-            TIME=self.TIME,
-            start_dt=start_dt,
-        )
-        cursor = self.connect().cursor()
-        cursor.execute(sql)
-        results = cursor.fetchall()
-        if len(results) != 1:
-            raise Exception('Failed to get exactl one row when executing "{}"'.format(sql))
-        columns, = results
-        rowid, = columns
-        sql = 'SELECT {TIME}, {PRICE} FROM {symbol_id} WHERE _ROWID_ >= {rowid};'.format(
-            TIME=self.TIME,
-            PRICE=self.PRICE,
-            symbol_id=self.symbol_id,
-            rowid=rowid,
-        )
-        cursor = self.connect().cursor()
-        cursor.execute(sql)
-        results = cursor.fetchall()
-
+        kwargs = {self.TIME: start_dt}
+        session = self.get_db_session()
+        first = session.query(self.data).filter_by(**kwargs).first()
+        results = session.query(self.data).filter(id >= start_dt).first()
         return results
-
-
 
     def get_url(self, query_data):
         url_1 = ('https', 'rest.coinapi.io/v1', 'ohlcv/{}/history'.format(self.symbol_id))
@@ -163,23 +128,6 @@ class PriceSeries(object):
         url_2 = ('', query, '')
         url = urllib.parse.urlunparse(url_1 + url_2)
         return url
-
-    def _create_store(self):
-        logger.debug('creating table {} (if it does not exist)'.format(self.symbol_id))
-        create_table = ['CREATE TABLE IF NOT EXISTS {symbol_id} (']
-        #fields = ['id integer PRIMARY KEY']
-        fields = []
-        for name, type_ in self.schema:
-            fields.append('{} {}'.format(name, type_))
-        fields = ',\n'.join(fields)
-        create_table.append(fields)
-        create_table.append(');')
-        create_table = '\n'.join(create_table)
-        cursor = self.connect().cursor()
-        cursor.execute(create_table.format(
-            symbol_id=self.symbol_id
-        ))
-        self.connect().commit()
 
     def fetch(self):
         last_date = self.get_last_date_from_store()
@@ -203,54 +151,40 @@ class PriceSeries(object):
         url = self.get_url(query_data)
         logger.debug('getting url {}'.format(url))
         response = requests.get(url, headers=self.headers)
-        logger.info('Account has {} more API requests for this time period'.format(
+        logger.info('account has {} more API requests for this time period'.format(
             response.headers['X-RateLimit-Remaining']))
         return response.json()
 
     def get_last_date_from_store(self):
-        sql = 'SELECT {the_columns} FROM {symbol_id} ORDER BY _ROWID_ DESC LIMIT 1;'.format(
-            the_columns=', '.join((self.TIME, self.PRICE)),
-            symbol_id=self.symbol_id,
-        )
-        cursor = self.connect().cursor()
-        cursor.execute(sql)
-        results = cursor.fetchall()
-        if len(results) == 0:
-            return None
-        last_row, = results
-        last_date = parse_dt(last_row[0])
-        return last_date
+        session = self.get_db_session()
+        obj = session.query(self.data).order_by(self.data.id.desc()).first()
+        if obj is None:
+            return parse_dt(self.first_date)
+        dt = getattr(obj, self.TIME)
+        return parse_dt(dt)
 
     def insert(self, data):
         logger.debug('inserting {} records into table {}'.format(len(data), self.symbol_id))
-        insert_rows = []
+        insertions = []
         for row in data:
-            values = [None] * len(self.schema)
-            for key, value in row.items():
-                index = self.column_names.index(key)
-                values[index] = value
-            assert all(map(lambda x: x is not None, values)), 'Tried to insert None: {}'.format(values)
-            insert_rows.append(values)
-        if insert_rows:
-            try:
-                cursor = self.connect().cursor()
-                cursor.executemany(self.row_template, insert_rows)
-            finally:
-                logger.debug('done inserting. committing...')
-                self.connect().commit()
+            insertions.append(self.data(**row))
+        session = self.get_db_session()
+        session.add_all(insertions)
+        session.commit()
 
     def update(self):
         data = self.fetch()
         self.insert(data)
 
 
-def main(dir_path):
+def main(dir_path, daemon=True):
 
-    # when I'm a daemon, log all exceptions
-    def exception_handler(type_, value, tb):
-        logger.exception('uncaught exception: {}'.format(str(value)))
-        sys.__excepthook__(type_, value, tb)
-    sys.excepthook = exception_handler
+    if daemon:
+        # when I'm a daemon, log all exceptions
+        def exception_handler(type_, value, tb):
+            logger.exception('uncaught exception: {}'.format(str(value)))
+            sys.__excepthook__(type_, value, tb)
+        sys.excepthook = exception_handler
 
     fh = logging.FileHandler(os.path.join(dir_path, 'logs'))
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -287,19 +221,19 @@ if __name__ == '__main__':
     # no need to involve argparse for something this simple
     DAEMON = True
     if '--daemon' in sys.argv:
-        script_name, _, dir_path = sys.argv
+        script_name, _, DIR_PATH = sys.argv
     else:
-        script_name, dir_path = sys.argv
+        script_name, DIR_PATH = sys.argv
         DAEMON = False
 
-    logger.debug('starting daemon {} using path {}'.format(script_name, dir_path))
+    logger.debug('starting daemon {} using path {}'.format(script_name, DIR_PATH))
 
     if DAEMON:
         with daemon.DaemonContext(
-                working_directory=dir_path,
-                pidfile=daemon.pidfile.PIDLockFile(os.path.join(dir_path, 'pid')),
+                working_directory=DIR_PATH,
+                pidfile=daemon.pidfile.PIDLockFile(os.path.join(DIR_PATH, 'pid')),
 
         ):
-            main(dir_path)
+            main(DIR_PATH, daemon=True)
     else:
-        main(dir_path)
+        main(DIR_PATH, daemon=False)

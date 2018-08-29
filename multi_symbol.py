@@ -3,6 +3,7 @@ import datetime
 from dateutil.parser import parse as parse_dt
 import base
 
+
 class PriceHistoryComparison(object):
 
     def __init__(self, data):
@@ -19,6 +20,7 @@ class PriceHistoryComparison(object):
             for key in self.symbols:
                 columns.append(self.data[key][1][1])
             yield columns
+
 
 if __name__ == '__main__':
 
