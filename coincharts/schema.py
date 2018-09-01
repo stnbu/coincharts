@@ -12,6 +12,11 @@ import django.db.models
 import sqlalchemy.types
 import sqlalchemy.ext.declarative
 
+from coincharts import config
+
+# We're replacing the module with a dict. Importing the file shouldn't result in reading from disk, etc. That's why.
+config = config.get_config()
+
 datetime_field = 'time_period_end'
 price_field = 'price_close'
 

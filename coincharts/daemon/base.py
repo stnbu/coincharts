@@ -14,12 +14,14 @@ import logging
 import logging.handlers
 import time
 
-import yaml
 from sqlalchemy import Integer, String, Float
 import daemon
 import daemon.pidfile
 
-from coincharts import schema
+from coincharts import schema, config
+
+# We're replacing the module with a dict. Importing the file shouldn't result in reading from disk, etc. That's why.
+config = config.get_config()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -27,11 +29,6 @@ logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 logger.addHandler(ch)
-
-
-CONFIG_DIR = os.path.expanduser('~/.coincharts')
-API_KEY_FILE = os.path.join(CONFIG_DIR, 'API_KEY')
-CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.yaml')
 
 
 class PriceSeries(object):
@@ -43,8 +40,7 @@ class PriceSeries(object):
         limit=100000,
     )
     date_format_template = '%Y-%m-%dT%H:%M:%S.%f0Z'  # magic
-    headers = {'X-CoinAPI-Key':
-               open(API_KEY_FILE).read().strip()}
+    headers = {'X-CoinAPI-Key': config['api_key']}
 
     # this is the beginning of time if we don't have any local data
     first_date = '2018-01-09T00:00:00.0000000Z'
@@ -180,9 +176,6 @@ def worker(dir_path, daemonize=True):
     sh = logging.handlers.SysLogHandler(address='/var/run/syslog')
     sh.setLevel(logging.DEBUG)
     logger.addHandler(sh)
-
-    with open(CONFIG_FILE) as f:
-        config = yaml.load(f)
 
     series = []
     for symbol_id in config['history_symbols']:
