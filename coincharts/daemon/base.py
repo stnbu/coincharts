@@ -19,7 +19,7 @@ from sqlalchemy import Integer, String, Float
 import daemon
 import daemon.pidfile
 
-from mutils import simple_alchemy
+from coincharts import schema
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -45,22 +45,6 @@ class PriceSeries(object):
     date_format_template = '%Y-%m-%dT%H:%M:%S.%f0Z'  # magic
     headers = {'X-CoinAPI-Key':
                open(API_KEY_FILE).read().strip()}
-    schema = [
-        ('time_period_start', 'TEXT'),
-        ('time_period_end', 'TEXT'),
-        ('time_open', 'TEXT'),
-        ('time_close', 'TEXT'),
-        ('price_open', 'REAL'),
-        ('price_high', 'REAL'),
-        ('price_low', 'REAL'),
-        ('price_close', 'REAL'),
-        ('volume_traded', 'REAL'),
-        ('trades_count', 'INTEGER'),
-    ]
-
-    # these are THE values we care about, so CAPS
-    TIME = 'time_period_end'
-    PRICE = 'price_close'
 
     # this is the beginning of time if we don't have any local data
     first_date = '2018-01-09T00:00:00.0000000Z'
@@ -73,7 +57,7 @@ class PriceSeries(object):
         if cls._session is not None:
             return cls._session
         db_path = os.path.join(os.path.abspath(dir_path), 'db.sqlite3')
-        cls._session = simple_alchemy.get_session(db_path)
+        cls._session = schema.get_sqlalchemy_session(db_path)
         return cls._session
 
     @classmethod
@@ -101,19 +85,7 @@ class PriceSeries(object):
         logger.debug('creating PriceSeries object for {}'.format(symbol_id))
         self.symbol_id = symbol_id
         self.dir_path = dir_path
-        schema = [
-            ('time_period_start', String),
-            ('time_period_end', String),
-            ('time_open', String),
-            ('time_close', String),
-            ('price_open', Float),
-            ('price_high', Float),
-            ('price_low', Float),
-            ('price_close', Float),
-            ('volume_traded', Float),
-            ('trades_count', Integer),
-        ]
-        self.data = simple_alchemy.get_table_class(symbol_id, schema=schema)
+        self.data = schema.get_db_table(symbol_id, 'sqlalchemy')
 
     def get_prices_since(self, start_dt):
         """Get prices for this PriceSeries where datetime is greater or equal to `start_dt`
@@ -125,7 +97,7 @@ class PriceSeries(object):
         except TypeError:
             pass
         start_dt = self.get_normalized_datetime(self.round_up_hour(start_dt))
-        kwargs = {self.TIME: start_dt}
+        kwargs = {schema.datetime_field: start_dt}
         session = self.get_db_session(self.dir_path)
         first = session.query(self.data).filter_by(**kwargs).first()
         results = session.query(self.data).filter(id >= first).first()
@@ -180,7 +152,7 @@ class PriceSeries(object):
         obj = session.query(self.data).order_by(self.data.id.desc()).first()
         if obj is None:
             return parse_dt(self.first_date)
-        dt = getattr(obj, self.TIME)
+        dt = getattr(obj, schema.datetime_field)
         return parse_dt(dt)
 
     def insert(self, data):
