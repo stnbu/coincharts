@@ -22,3 +22,6 @@ class Prices(models.Model):
             getattr(self, TIME),
             getattr(self, PRICE)
         )
+
+    class Meta:
+        app_label = 'coincharts'
