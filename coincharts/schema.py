@@ -71,7 +71,8 @@ def get_db_table(symbol_id, orm):
             raise Exception('Unknown ORM "{}"'.format(orm))
 
     if orm == 'django':
-        klass = type(symbol_id, (models.Model,), columns)
+        columns['__module__'] = __name__
+        klass = type(symbol_id, (django.db.models.Model,), columns)
         klass.__str__ = __str__
     elif orm == 'sqlalchemy':
         Base = sqlalchemy.ext.declarative.declarative_base()
