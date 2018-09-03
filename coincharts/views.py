@@ -4,8 +4,9 @@ from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponseRedirect
 from .models import Prices
 
-def index(request):
-    prices = Prices.objects.all()[:100]
+def index(request, symbol_id):
+    prices = Prices.objects.filter(symbol_id=symbol_id)[:100]
+
     context = {
         'prices': prices,
     }

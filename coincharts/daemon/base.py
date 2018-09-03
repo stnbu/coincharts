@@ -115,7 +115,7 @@ class PriceSeries(object):
             response.headers['X-RateLimit-Remaining']))
         data = response.json()
         # validate the FIRST date from the data returned. Not perfect, but will prevent future heartache.
-        self.validate_datetime_object(data[0]['time_period_end'])
+        self.validate_datetime_object(data[0]['time'])
         return data
 
     def get_last_date_from_store(self, symbol_id):
@@ -124,7 +124,7 @@ class PriceSeries(object):
         except db.Prices.DoesNotExist:
             logging.info('No `time_period_end` value found for {}'.format(symbol_id))
             return None
-        dt = getattr(obj, 'time_period_end')
+        dt = getattr(obj, 'time')
         return parse_dt(dt)
 
     def insert(self, symbol_id, data):

@@ -16,6 +16,25 @@ class Prices(models.Model):
     volume_traded = models.FloatField()
     trades_count = models.IntegerField()
 
+    # Since there are multiple time/price fields, we set up aliases. The `@property` decorator seems to be
+    # the cleanest way to do this.
+
+    @property
+    def price(self):
+        return self.price_close
+
+    @price.setter
+    def price(self, value):
+        self.price_close = value
+
+    @property
+    def time(self):
+        return self.time_period_end
+
+    @time.setter
+    def time(self, value):
+        self.time_period_start = value
+
     def __str__(self):
         class_name = self.__class__.__name__
         return '{}@{}'.format(
