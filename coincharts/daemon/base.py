@@ -46,6 +46,8 @@ class PriceSeries(object):
 
     @classmethod
     def validate_datetime_object(cls, dt):
+        if isinstance(dt, str):
+            dt = parse_dt(dt)
         assert dt.tzname() == 'UTC', 'tzname==`{}`. Expected `UTC`'.format(dt.tzname())
         assert not dt.hour % 6, 'hour==`{}` not a multiple of `6`'.format(dt.hour)
         for attr in 'minute', 'second', 'microsecond':
@@ -117,7 +119,11 @@ class PriceSeries(object):
         return data
 
     def get_last_date_from_store(self, symbol_id):
-        obj = db.Prices.objects.filter(symbol_id=symbol_id).order_by('id').latest()
+        try:
+            obj = db.Prices.objects.filter(symbol_id=symbol_id).order_by('id').latest()
+        except db.Prices.DoesNotExist:
+            logging.info('No `time_period_end` value found for {}'.format(symbol_id))
+            return None
         dt = getattr(obj, 'time_period_end')
         return parse_dt(dt)
 
