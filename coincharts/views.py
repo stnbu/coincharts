@@ -10,17 +10,7 @@ import time
 import svg_graph
 
 def index(request, symbol_id):
-    prices = Prices.objects.filter(symbol_id=symbol_id)[:100]
-
-    # these make no sense. testing.
-    x_labels = svg_graph.GraphLabel('Year',
-                          values=(2008, 2009, 2010, 2011, 2012),
-                          padding=100)
-
-    y_labels = svg_graph.GraphLabel('Price',
-                          values=(0, 5, 10, 15),
-                          padding=100,
-                          omit_zeroith=True)
+    prices = Prices.objects.filter(symbol_id=symbol_id)[:1000]
 
     def string_to_epoch(string):
         return time.mktime(parse_dt(string).timetuple())
@@ -28,20 +18,21 @@ def index(request, symbol_id):
     def prices_gen(prices):
         x = []
         for p in prices:
-            x.append((string_to_epoch(p.time), int(p.price)))
+            x.append((p.time, int(p.price)))
         return x
 
-    xyz = prices_gen(prices)
-    print('-'*100)
-    print(len(xyz))
-    print('-'*100)
+    title = '{} from {} to {}'.format(
+        symbol_id,
+        prices[0].time,
+        prices[len(prices)-1].time,  # "negative indexing is not supported"
+    )
 
     graph = svg_graph.LineGraph(
-        'Look at This Graph',
+        title,
         height=580,
-        width=700,
-        points=xyz,
-        labels=[x_labels, y_labels]
+        width=1200,
+        points=prices_gen(prices),
+        linear_x=True
     )
 
     context = {
