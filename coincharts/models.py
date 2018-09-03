@@ -1,6 +1,7 @@
 
 from django.db import models
 
+
 class Prices(models.Model):
 
     symbol_id = models.CharField(max_length=100)
@@ -14,14 +15,14 @@ class Prices(models.Model):
     price_close = models.FloatField()
     volume_traded = models.FloatField()
     trades_count = models.IntegerField()
-    
+
     def __str__(self):
         class_name = self.__class__.__name__
-        return '<{}({}@{})>'.format(
-            class_name,
-            getattr(self, TIME),
-            getattr(self, PRICE)
+        return '{}@{}'.format(
+            self.time_period_end,
+            self.price_close
         )
 
     class Meta:
         app_label = 'coincharts'
+        get_latest_by = 'id'
