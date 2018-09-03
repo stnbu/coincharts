@@ -4,6 +4,9 @@ from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponseRedirect
 from .models import Prices
 
+from dateutil.parser import parse as parse_dt
+import time
+
 import svg_graph
 
 def index(request, symbol_id):
@@ -19,17 +22,27 @@ def index(request, symbol_id):
                           padding=100,
                           omit_zeroith=True)
 
-    graph = svg_graph.LineGraph('Look at This Graph',
-                   height=580,
-                   width=700,
-                   points=[
-                       (0, 0),
-                       (2, 3),
-                       (53, 87),
-                       (99, 200),
-                       (444, 50),
-                       (700, 580)],
-                   labels=[x_labels, y_labels])
+    def string_to_epoch(string):
+        return time.mktime(parse_dt(string).timetuple())
+
+    def prices_gen(prices):
+        x = []
+        for p in prices:
+            x.append((string_to_epoch(p.time), int(p.price)))
+        return x
+
+    xyz = prices_gen(prices)
+    print('-'*100)
+    print(len(xyz))
+    print('-'*100)
+
+    graph = svg_graph.LineGraph(
+        'Look at This Graph',
+        height=580,
+        width=700,
+        points=xyz,
+        labels=[x_labels, y_labels]
+    )
 
     context = {
         'graph': graph,
