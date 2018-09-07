@@ -1,6 +1,10 @@
 
 from django.db import models
 
+# There are many datetime/price fields. We are interested almost exclusively in these two, and they are used in many places.
+# Less headache if we use these ugly global names to avoid confusion 
+THE_DATETIME_FIELD = 'time_period_end'
+THE_PRICE_FIELD = 'price_close'
 
 class Prices(models.Model):
 
@@ -21,25 +25,25 @@ class Prices(models.Model):
 
     @property
     def price(self):
-        return self.price_close
+        return getattr(self, THE_PRICE_FIELD)
 
     @price.setter
     def price(self, value):
-        self.price_close = value
+        setattr(self, THE_PRICE_FIELD, value)
 
     @property
-    def time(self):
-        return self.time_period_end
+    def dt(self):
+        return getattr(self, THE_DATETIME_FIELD)
 
-    @time.setter
-    def time(self, value):
-        self.time_period_start = value
+    @dt.setter
+    def dt(self, value):
+        setattr(self, THE_DATETIME_FIELD, value)
 
     def __str__(self):
         class_name = self.__class__.__name__
         return '{}@{}'.format(
-            self.time_period_end,
-            self.price_close
+            self.dt,
+            self.price
         )
 
     class Meta:

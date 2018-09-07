@@ -18,6 +18,7 @@ import daemon
 import daemon.pidfile
 
 from coincharts import config, db
+from coincharts.models import THE_DATETIME_FIELD, THE_PRICE_FIELD
 
 # We're replacing the module with a dict. Importing the file shouldn't result in reading from disk, etc. That's why.
 config = config.get_config()
@@ -114,7 +115,7 @@ class PriceSeries(object):
             response.headers['X-RateLimit-Remaining']))
         data = response.json()
         # validate the FIRST date from the data returned. Not perfect, but will prevent future heartache.
-        self.validate_datetime_object(data[0]['time_period_start'])  # TODO. how to track that we want *this* time field
+        self.validate_datetime_object(data[0][THE_DATETIME_FIELD])
         return data
 
     def get_last_date_from_store(self, symbol):
@@ -123,7 +124,7 @@ class PriceSeries(object):
         except db.Prices.DoesNotExist:
             logging.info('No `time_period_end` value found for {}'.format(symbol))
             return None
-        dt = getattr(obj, 'time')
+        dt = getattr(obj, 'dt')
         return parse_dt(dt)
 
     def insert(self, symbol, data):

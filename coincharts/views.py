@@ -18,13 +18,13 @@ def index(request, symbol):
     def prices_gen(prices):
         x = []
         for p in prices:
-            x.append((p.time, int(p.price)))
+            x.append((p.dt, int(p.price)))
         return x
 
     title = '{} from {} to {}'.format(
         symbol,
-        prices[0].time,
-        prices[len(prices)-1].time,  # "negative indexing is not supported"
+        prices[0].dt,
+        prices[len(prices)-1].dt,  # "negative indexing is not supported"
     )
 
     graph = svg_graph.LineGraph(

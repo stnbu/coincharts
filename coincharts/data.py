@@ -25,9 +25,9 @@ class SymbolInfo(object):
 
     @property
     @memoize
-    def date_range(self):
-        start = self.history[0].time
-        end = self.history[len(self.history)-1].time
+    def dt_range(self):
+        start = self.history[0].dt
+        end = self.history[len(self.history)-1].dt
         return start, end
 
     @property
@@ -59,20 +59,20 @@ class SymbolComparison(dict):
 
     @property
     @memoize
-    def start_date_indexes(self):
+    def start_dt_indexes(self):
         indexes = {}
         for symbol, data in self.items():
             try:
-                indexes[symbol] = [s.time for s in data.history].index(self.earliest_common_time)
+                indexes[symbol] = [s.dt for s in data.history].index(self.earliest_common_dt)
             except ValueError:
-                raise ValueError('Could not find date {} in history of {}'.format(
-                    self.earliest_common_time, symbol))
+                raise ValueError('Could not find datetime {} in history of {}'.format(
+                    self.earliest_common_dt, symbol))
         return indexes
 
     @property
     @memoize
-    def earliest_common_time(self):
-        return sorted([symbol.history[0].time for symbol in self.values()])[0]
+    def earliest_common_dt(self):
+        return sorted([symbol.history[0].dt for symbol in self.values()])[0]
 
     def normalized_price_history_averages(self):
         normalized_price_history_generators = []
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     #     print(name,
     #           info.min,
     #           info.max, '\t',
-    #           info.date_range, sep='\t')
+    #           info.dt_range, sep='\t')
 
     comparison = SymbolComparison(symbol_info)
 
