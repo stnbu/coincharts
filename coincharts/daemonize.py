@@ -17,8 +17,7 @@ import time
 import daemon
 import daemon.pidfile
 
-from coincharts.daemon import db
-from coincharts import config
+from coincharts import config, db
 
 # We're replacing the module with a dict. Importing the file shouldn't result in reading from disk, etc. That's why.
 config = config.get_config()
@@ -67,12 +66,12 @@ class PriceSeries(object):
         dt = dt.replace(minute=0, second=0, microsecond=0)
         return dt
 
-    def __init__(self, symbol_ids, dir_path):
-        self.symbol_ids = symbol_ids
+    def __init__(self, symbols, dir_path):
+        self.symbols = symbols
         self.dir_path = dir_path
 
-    def get_url(self, symbol_id, query_data):
-        url_beginning = ('https', 'rest.coinapi.io/v1', 'ohlcv/{}/history'.format(symbol_id))
+    def get_url(self, symbol, query_data):
+        url_beginning = ('https', 'rest.coinapi.io/v1', 'ohlcv/{}/history'.format(symbol))
         query = []
         for key, value in query_data.items():
             if not value:
@@ -86,13 +85,13 @@ class PriceSeries(object):
         url = urllib.parse.urlunparse(url_beginning + url_end)
         return url
 
-    def fetch(self, symbol_id):
-        last_date = self.get_last_date_from_store(symbol_id)
+    def fetch(self, symbol):
+        last_date = self.get_last_date_from_store(symbol)
         if last_date is None:
-            logger.debug('last date for {} not found. using default of {}'.format(symbol_id, self.first_date))
+            logger.debug('last date for {} not found. using default of {}'.format(symbol, self.first_date))
             last_date = parse_dt(self.first_date)
         else:
-            logger.debug('date of last record for {} is {}'.format(symbol_id, last_date))
+            logger.debug('date of last record for {} is {}'.format(symbol, last_date))
         self.validate_datetime_object(last_date)
 
         now = datetime.datetime.now(tz=pytz.UTC)
@@ -105,7 +104,7 @@ class PriceSeries(object):
         query_data = dict(self.query_template)
         query_data['time_start'] = first_fetch_date
         query_data['limit'] = 1500  # just over one year of records @6hrs
-        url = self.get_url(symbol_id, query_data)
+        url = self.get_url(symbol, query_data)
         logger.debug('getting url {}'.format(url))
         response = requests.get(url, headers=self.headers)
         if response.status_code != 200:
@@ -115,31 +114,31 @@ class PriceSeries(object):
             response.headers['X-RateLimit-Remaining']))
         data = response.json()
         # validate the FIRST date from the data returned. Not perfect, but will prevent future heartache.
-        self.validate_datetime_object(data[0]['time'])
+        self.validate_datetime_object(data[0]['time_period_start'])  # TODO. how to track that we want *this* time field
         return data
 
-    def get_last_date_from_store(self, symbol_id):
+    def get_last_date_from_store(self, symbol):
         try:
-            obj = db.Prices.objects.filter(symbol_id=symbol_id).order_by('id').latest()
+            obj = db.Prices.objects.filter(symbol=symbol).order_by('id').latest()
         except db.Prices.DoesNotExist:
-            logging.info('No `time_period_end` value found for {}'.format(symbol_id))
+            logging.info('No `time_period_end` value found for {}'.format(symbol))
             return None
         dt = getattr(obj, 'time')
         return parse_dt(dt)
 
-    def insert(self, symbol_id, data):
-        logger.debug('inserting {} records for symbol_id {}'.format(len(data), symbol_id))
+    def insert(self, symbol, data):
+        logger.debug('inserting {} records for symbol {}'.format(len(data), symbol))
         insertions = []
         for row in data:
-            insertions.append(db.Prices(symbol_id=symbol_id, **row))
+            insertions.append(db.Prices(symbol=symbol, **row))
         # `.save()` done by django orm after `bulk_create`
         db.Prices.objects.bulk_create(insertions)
 
     def update(self):
         # TODO: probably opportunities for parallelization
-        for symbol_id in self.symbol_ids:
-            data = self.fetch(symbol_id)
-            self.insert(symbol_id, data)
+        for symbol in self.symbols:
+            data = self.fetch(symbol)
+            self.insert(symbol, data)
 
 
 def worker(dir_path, daemonize=True):

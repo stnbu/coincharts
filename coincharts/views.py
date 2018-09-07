@@ -9,8 +9,8 @@ import time
 
 import svg_graph
 
-def index(request, symbol_id):
-    prices = Prices.objects.filter(symbol_id=symbol_id)[:1000]
+def index(request, symbol):
+    prices = Prices.objects.filter(symbol=symbol)[:1000]
 
     def string_to_epoch(string):
         return time.mktime(parse_dt(string).timetuple())
@@ -22,7 +22,7 @@ def index(request, symbol_id):
         return x
 
     title = '{} from {} to {}'.format(
-        symbol_id,
+        symbol,
         prices[0].time,
         prices[len(prices)-1].time,  # "negative indexing is not supported"
     )

@@ -4,7 +4,7 @@ from django.db import models
 
 class Prices(models.Model):
 
-    symbol_id = models.CharField(db_index=True, max_length=100)
+    symbol = models.CharField(db_index=True, max_length=100)
     time_period_start = models.CharField(max_length=100)
     time_period_end = models.CharField(max_length=100)
     time_open = models.CharField(max_length=100)

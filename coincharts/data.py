@@ -10,12 +10,12 @@ from coincharts.db import *
 from coincharts import config
 config = config.get_config()
 
-symbol_ids = config['history_symbols']
+symbols = config['history_symbols']
 
-class SymbolIdInfo(object):
+class SymbolInfo(object):
 
-    def __init__(self, symbol_id):
-        self.symbol_id = symbol_id
+    def __init__(self, symbol):
+        self.symbol = symbol
 
     def normalize_price(self, price):
         return (price - self.min) / (self.max - self.min)
@@ -43,7 +43,7 @@ class SymbolIdInfo(object):
     @property
     @memoize
     def history(self):
-        return Prices.objects.filter(symbol_id=self.symbol_id)
+        return Prices.objects.filter(symbol=self.symbol)
 
     @property
     def normalized_price_history(self):
@@ -52,7 +52,7 @@ class SymbolIdInfo(object):
             yield (price.price - self.min) / price_delta
 
 
-class SymbolIdComparison(dict):
+class SymbolComparison(dict):
 
     def __init__(self, *args, **kwargs):
         self.update(*args, **kwargs)
@@ -61,12 +61,12 @@ class SymbolIdComparison(dict):
     @memoize
     def start_date_indexes(self):
         indexes = {}
-        for symbol_id, data in self.items():
+        for symbol, data in self.items():
             try:
-                indexes[symbol_id] = [s.time for s in data.history].index(self.earliest_common_time)
+                indexes[symbol] = [s.time for s in data.history].index(self.earliest_common_time)
             except ValueError:
                 raise ValueError('Could not find date {} in history of {}'.format(
-                    self.earliest_common_time, symbol_id))
+                    self.earliest_common_time, symbol))
         return indexes
 
     @property
@@ -76,7 +76,7 @@ class SymbolIdComparison(dict):
 
     def normalized_price_history_averages(self):
         normalized_price_history_generators = []
-        for symbol_id, data in self.items():
+        for symbol, data in self.items():
             normalized_price_history_generators.append(
                 data.normalized_price_history
             )
@@ -93,18 +93,18 @@ class SymbolIdComparison(dict):
 
 if __name__ == '__main__':
 
-    symbol_id_info = SymbolIdComparison()
-    for symbol_id in symbol_ids:
-        symbol_id_info[symbol_id] = SymbolIdInfo(symbol_id)
+    symbol_info = SymbolComparison()
+    for symbol in symbols:
+        symbol_info[symbol] = SymbolInfo(symbol)
 
     # print('name\t\t\tmin\tmax\t\t\trange')
-    # for name, info in symbol_id_info.items():
+    # for name, info in symbol_info.items():
     #     print(name,
     #           info.min,
     #           info.max, '\t',
     #           info.date_range, sep='\t')
 
-    comparison = SymbolIdComparison(symbol_id_info)
+    comparison = SymbolComparison(symbol_info)
 
     for p in comparison.normalized_price_history_averages():
         print(p)
