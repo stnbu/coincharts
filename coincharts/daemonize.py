@@ -17,13 +17,13 @@ import time
 import daemon
 import daemon.pidfile
 
-from coincharts import config, db
+from coincharts.daemon import db
+from coincharts import config
 
 # We're replacing the module with a dict. Importing the file shouldn't result in reading from disk, etc. That's why.
 config = config.get_config()
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+from coincharts import logger
 
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)

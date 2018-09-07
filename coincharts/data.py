@@ -1,0 +1,89 @@
+# -*- mode: python; coding: utf-8 -*-
+
+import os
+os.environ['DJANGO_SETTINGS_MODULE'] = 'coincharts.settings'
+
+from mutils.memoize import memoize
+
+from coincharts.db import *
+
+from coincharts import config
+config = config.get_config()
+
+symbol_ids = config['history_symbols']
+
+class SymbolIdInfo(object):
+
+    def __init__(self, symbol_id):
+        self.symbol_id = symbol_id
+
+    def normalize_price(self, price):
+        return (price - self.min) / (self.max - self.min)
+
+    @property
+    @memoize
+    def date_range(self):
+        start = self.history[0].time
+        end = self.history[len(self.history)-1].time
+        return start, end
+
+    @property
+    @memoize
+    def min(self):
+        return min([s.price for s in self.history])
+
+    @property
+    @memoize
+    def max(self):
+        return max([s.price for s in self.history])
+
+    @property
+    @memoize
+    def history(self):
+        return Prices.objects.filter(symbol_id=self.symbol_id)
+
+    @property
+    def normalized_price_history(self):
+        price_delta = self.max - self.min
+        for price in self.history:
+            yield (price - self.min) / price_delta
+
+
+class SymbolIdComparison(dict):
+
+    def __init__(self, *args, **kwargs):
+        self.update(*args, **kwargs)
+        self._start_date_indexes = {}
+        self._earliest_common_time = None
+
+    @property
+    def start_date_indexes(self):
+        if self._start_date_indexes is not None:
+            return self._start_date_indexes
+        for symbol_id, data in self.items():
+            try:
+                self._start_date_indexes[symbol_id] = \
+                    [s.date for s in data].index(self.earliest_common_time)
+            except ValueError:
+                raise ValueError('Could not find date {} in history of {}'.format(
+                    self.earliest_common_time, symbol_id))
+
+    @property
+    def earliest_common_time(self):
+        if self._earliest_common_time is not None:
+            return self._earliest_common_time
+        self._earliest_common_time = sorted([symbol[0].date for symbol in self.values()])[0]
+        return self._earliest_common_time
+
+if __name__ == '__main__':
+
+    symbol_id_info = SymbolIdComparison()
+    for symbol_id in symbol_ids:
+        symbol_id_info[symbol_id] = SymbolIdInfo(symbol_id)
+
+    print('name\t\t\tmin\tmax\t\t\trange')
+    for name, info in symbol_id_info.items():
+        print(name,
+              info.min,
+              info.max, '\t',
+              info.date_range, sep='\t')
