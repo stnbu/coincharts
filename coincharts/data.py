@@ -7,6 +7,7 @@ from dateutil.parser import parse as parse_dt
 from mutils.memoize import memoize
 
 from coincharts.db import *
+from coincharts.models import THE_DATETIME_FIELD, THE_PRICE_FIELD
 
 from coincharts import config
 config = config.get_config()
@@ -14,9 +15,10 @@ config = config.get_config()
 
 class SymbolInfo(object):
 
-    def __init__(self, symbol, length):
+    def __init__(self, symbol, length, since=None):
         self.symbol = symbol
         self.length = length  # this is set below when we access the "history". Being as lazy as possible.
+        self.since = since
 
     @property
     @memoize
@@ -31,7 +33,12 @@ class SymbolInfo(object):
     @property
     @memoize
     def history(self):
-        history = Prices.objects.filter(symbol=self.symbol)
+        kwargs = dict(symbol=self.symbol)
+        if self.since is not None:
+            dt__gte = '{}__gte'.format(THE_DATETIME_FIELD)  # `@property` name mangling not supported
+            kwargs[dt__gte] = self.since
+
+        history = Prices.objects.filter(**kwargs)
         self.length = len(history)
         return history
 
