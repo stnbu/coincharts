@@ -24,6 +24,6 @@ setup(
     provides=[name],
     packages=[name],
         entry_points = {
-        'console_scripts': ['coincharts-daemon=coincharts.daemon:main'],
+        'console_scripts': ['coincharts-daemon=coincharts.daemonize:main'],
     }
 )

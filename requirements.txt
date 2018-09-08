@@ -2,3 +2,4 @@ python-daemon>=2.2
 requests>=2.18
 python-dateutil>=2.7
 PyYAML>=3.13
+git+https://github.com/stnbu/mutils.git

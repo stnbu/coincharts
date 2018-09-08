@@ -19,6 +19,7 @@ import daemon.pidfile
 
 from coincharts import config, db
 from coincharts.models import THE_DATETIME_FIELD, THE_PRICE_FIELD
+from coincharts.data import date_format_template
 
 # We're replacing the module with a dict. Importing the file shouldn't result in reading from disk, etc. That's why.
 config = config.get_config()
@@ -38,7 +39,6 @@ class PriceSeries(object):
         time_end='',
         limit=100000,
     )
-    date_format_template = '%Y-%m-%dT%H:%M:%S.%f0Z'  # magic
     headers = {'X-CoinAPI-Key': config['api_key']}
 
     # this is the beginning of time if we don't have any local data
@@ -58,7 +58,7 @@ class PriceSeries(object):
     def get_normalized_datetime(cls, dt):
         if not isinstance(dt, datetime.datetime):
             dt = parse_dt(dt)
-        return dt.strftime(cls.date_format_template)
+        return dt.strftime(date_format_template)
 
     @classmethod
     def round_up_hour(cls, dt):

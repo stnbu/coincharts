@@ -12,6 +12,7 @@ from coincharts.models import THE_DATETIME_FIELD, THE_PRICE_FIELD
 from coincharts import config
 config = config.get_config()
 
+date_format_template = '%Y-%m-%dT%H:%M:%S.%f0Z'  # magic
 
 class SymbolInfo(object):
 
