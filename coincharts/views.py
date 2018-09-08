@@ -30,8 +30,7 @@ def index(request):
     for symbol in symbols:
         comparison[symbol] = SymbolInfo(symbol, since=one_week_ago)
     history_generator = comparison.normalized_history_averages()
-
-    eth = comparison['BITSTAMP_SPOT_ETH_USD']
+    eth = comparison.pop('BITSTAMP_SPOT_ETH_USD')
 
     graph = svg_graph.LineGraph(
         title='Price history averages',
