@@ -21,11 +21,16 @@ def index(request):
         comparison[symbol] = SymbolInfo(symbol)
     history_generator = comparison.normalized_history_averages()
 
+    eth = comparison['BITSTAMP_SPOT_ETH_USD']
+
     graph = svg_graph.LineGraph(
         title='Price history averages',
         height=580,
         width=1200,
-        points=history_generator,
+        points_set=[
+            svg_graph.Points(eth.normalized_history, color='green'),
+            svg_graph.Points(history_generator, color='black'),
+        ],
     )
 
     context = {
