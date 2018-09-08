@@ -70,7 +70,7 @@ class SymbolComparison(dict):
             )
         num_prices = len(self)
         while True:
-            prices = []
+            prices = set()
             for gen in normalized_history_generators:
                 try:
                     point = gen.__next__()
@@ -78,10 +78,10 @@ class SymbolComparison(dict):
                     # this shouldn't matter, since they are *supposed* to all be the same.
                     # the validation of this and other things should be implemented.
                     dt, price = point
-                    prices.append(price)
+                    prices.add(price)
                 except StopIteration:
                     return
-                yield dt, sum(prices) / num_prices
+            yield dt, sum(prices) / num_prices
 
 if __name__ == '__main__':
 
