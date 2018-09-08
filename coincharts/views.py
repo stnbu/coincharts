@@ -6,37 +6,30 @@ from .models import Prices
 
 from dateutil.parser import parse as parse_dt
 import time
+from coincharts import config
+from coincharts.data import SymbolComparison, SymbolInfo
+
+config = config.get_config()
 
 import svg_graph
 
-def index(request, symbol):
-    prices = Prices.objects.filter(symbol=symbol)[:1000]
+def index(request):
 
-    def string_to_epoch(string):
-        return time.mktime(parse_dt(string).timetuple())
-
-    def prices_gen(prices):
-        x = []
-        for p in prices:
-            x.append((p.dt, int(p.price)))
-        return x
-
-    title = '{} from {} to {}'.format(
-        symbol,
-        prices[0].dt,
-        prices[len(prices)-1].dt,  # "negative indexing is not supported"
-    )
+    symbols = config['history_symbols']
+    comparison = SymbolComparison()
+    for symbol in symbols:
+        comparison[symbol] = SymbolInfo(symbol, length=967)
+    history_generator = comparison.normalized_history_averages()
 
     graph = svg_graph.LineGraph(
-        title,
+        title='Price history averages',
         height=580,
         width=1200,
-        points=prices_gen(prices),
-        linear_x=True
+        points=history_generator,
+        length=comparison.length
     )
 
     context = {
-        'graph': graph,
-        'prices': prices,
+        'graph': graph.to_xml(),
     }
     return render(request, 'coincharts/index.html', context)

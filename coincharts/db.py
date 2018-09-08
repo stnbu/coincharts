@@ -35,9 +35,13 @@ from django.conf import settings
 from django.db import connections
 import atexit
 
-# HACK -- note that the rhs "DATABASES" here comes from mysite.settings, above
-settings.configure(DATABASES=DATABASES)
-django.setup()
+# HACK -- This is doubly a hack: "DATABASES" pops into existence (from .settings) and also we're using a kludgy try/except
+# to test if the database is already configured.
+try:
+    settings.configure(DATABASES=DATABASES)
+    django.setup()
+except RuntimeError:
+    pass
 
 from coincharts.models import *
 

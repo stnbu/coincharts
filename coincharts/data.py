@@ -2,6 +2,7 @@
 
 import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'coincharts.settings'
+from dateutil.parser import parse as parse_dt
 
 from mutils.memoize import memoize
 
@@ -10,12 +11,12 @@ from coincharts.db import *
 from coincharts import config
 config = config.get_config()
 
-symbols = config['history_symbols']
 
 class SymbolInfo(object):
 
-    def __init__(self, symbol):
+    def __init__(self, symbol, length):
         self.symbol = symbol
+        self.length = length  # this is set below when we access the "history". Being as lazy as possible.
 
     @property
     @memoize
@@ -30,19 +31,29 @@ class SymbolInfo(object):
     @property
     @memoize
     def history(self):
-        return Prices.objects.filter(symbol=self.symbol)
+        history = Prices.objects.filter(symbol=self.symbol)
+        self.length = len(history)
+        return history
 
     @property
     def normalized_history(self):
         price_delta = self.max - self.min
         for record in self.history:
-            yield record.dt, (record.price - self.min) / price_delta
+            yield parse_dt(record.dt).timestamp(), (record.price - self.min) / price_delta
 
 
 class SymbolComparison(dict):
 
     def __init__(self, *args, **kwargs):
         self.update(*args, **kwargs)
+
+    @property
+    def length(self):
+        # `self.length` has to be a calculated value, we may be truncating other symbol histories
+        # so we're only dealing with time periods where they all overlap (are present).
+        # So it's up to me* to set self.length as soon as practical.
+        # For now we'll just grab an arbitrary symbol and use its lenght attribute
+        return list(self.values())[0].length  # <-- only a few symbols. not expensive.
 
     def normalized_history_averages(self):
         normalized_history_generators = []
@@ -67,6 +78,7 @@ class SymbolComparison(dict):
 
 if __name__ == '__main__':
 
+    symbols = config['history_symbols']
     comparison = SymbolComparison()
     for symbol in symbols:
         comparison[symbol] = SymbolInfo(symbol)
