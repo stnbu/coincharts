@@ -24,7 +24,7 @@ from coincharts.data import date_format_template
 # We're replacing the module with a dict. Importing the file shouldn't result in reading from disk, etc. That's why.
 config = config.get_config()
 
-from coincharts import logger
+from coincharts import logger, _DAEMON_NAME
 
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
@@ -144,7 +144,7 @@ class PriceSeries(object):
 
 def worker(dir_path, daemonize=True):
 
-    fh = logging.FileHandler(os.path.join(dir_path, 'logs'))
+    fh = logging.FileHandler(os.path.join(dir_path, '{}.log'.format(_DAEMON_NAME)))
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     fh.setLevel(logging.DEBUG)
@@ -195,7 +195,7 @@ def main():
     logger.debug('starting daemon {} using path {}'.format(script_name, dir_path))
 
     if daemonize:
-        pid_file = os.path.join(dir_path, script_basename + '.pid')
+        pid_file = os.path.join(dir_path, script_basename + '{}.pid'.format(_DAEMON_NAME))
         with daemon.DaemonContext(
                 working_directory=dir_path,
                 pidfile=daemon.pidfile.PIDLockFile(pid_file),
