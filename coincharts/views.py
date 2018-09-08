@@ -18,7 +18,7 @@ def index(request):
     symbols = config['history_symbols']
     comparison = SymbolComparison()
     for symbol in symbols:
-        comparison[symbol] = SymbolInfo(symbol, length=967, since='2018-08-16T06:59:59.0000000Z')
+        comparison[symbol] = SymbolInfo(symbol)
     history_generator = comparison.normalized_history_averages()
 
     graph = svg_graph.LineGraph(
@@ -26,7 +26,6 @@ def index(request):
         height=580,
         width=1200,
         points=history_generator,
-        length=comparison.length
     )
 
     context = {

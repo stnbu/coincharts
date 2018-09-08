@@ -15,9 +15,8 @@ config = config.get_config()
 
 class SymbolInfo(object):
 
-    def __init__(self, symbol, length, since=None):
+    def __init__(self, symbol, since=None):
         self.symbol = symbol
-        self.length = length  # this is set below when we access the "history". Being as lazy as possible.
         self.since = since
 
     @property
@@ -53,14 +52,6 @@ class SymbolComparison(dict):
 
     def __init__(self, *args, **kwargs):
         self.update(*args, **kwargs)
-
-    @property
-    def length(self):
-        # `self.length` has to be a calculated value, we may be truncating other symbol histories
-        # so we're only dealing with time periods where they all overlap (are present).
-        # So it's up to me* to set self.length as soon as practical.
-        # For now we'll just grab an arbitrary symbol and use its lenght attribute
-        return list(self.values())[0].length  # <-- only a few symbols. not expensive.
 
     def normalized_history_averages(self):
         normalized_history_generators = []
