@@ -150,10 +150,11 @@ def worker(dir_path, daemonize=True):
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
-    # TODO: SysLogHandler will not complain if socket not present. What do?
-    sh = logging.handlers.SysLogHandler(address='/var/run/syslog')
-    sh.setLevel(logging.DEBUG)
-    logger.addHandler(sh)
+    if os.path.exists('/var/run/syslog'):
+        # TODO: SysLogHandler will not complain if socket not present. What do?
+        sh = logging.handlers.SysLogHandler(address='/var/run/syslog')
+        sh.setLevel(logging.DEBUG)
+        logger.addHandler(sh)
 
     series = PriceSeries(config['history_symbols'], dir_path)
 
