@@ -4,6 +4,8 @@
 
 [`coincharts`](https://github.com/stnbu/coincharts) is a Django app that displays the normalized value of Ethereum (in US Dollars), vs the average of the normalized price of a "basket" of others. Price information is fetched from https://coinapi.io/ ever six hours (for now), using their REST API.
 
+Obviously, there is much room for generalization. TBD.
+
 A daemon that fetches and stores data locally is included.
 
 You can see it in action here: https://unintuitive.org/pages/coincharts/
@@ -92,21 +94,15 @@ def index(request):
 
 ### Modifying your template
 
-In the `<head>` place a conditional to include the CSS
-
-```html
-	{% if graph %}
-	<link rel="stylesheet" type="text/css" href="{% static 'coincharts/style.css' %}">
-	{% endif %}
-```
-
-Include the `coincharts` template in the body of _your_ template where appropriate
+Something as simple as
 
 ```html
 {% if graph %}
 {% graph|safe %}
 {% endif %}
 ```
+
+should work. CSS appears in-line (which assumes HTML5), so nothing special is required with regard to CSS.
 
 Known issues, limitations
 -------------------------
