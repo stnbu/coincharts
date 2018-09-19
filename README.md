@@ -108,7 +108,6 @@ Known issues, limitations
 -------------------------
 
 * _You_ must run the daemon. You may wish to use your OS's "supervisor" or similar.
-* Records are never updated, so if a commit or a repository description changes for example, you'll need to go and delete the corresponding row yourself.
 * It's not very pluggable for a "plug-in" (contributions welcome!)
 * You must set `myapp.settings.TEMPLATES['APP_DIRS']=True` or work out access to the template yourself.
 * I've had all kinds of problems with syslog. It would be great if it "just worked".
