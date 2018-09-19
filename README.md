@@ -33,6 +33,23 @@ Create a file at `~/.coincharts/API_KEY` with your key.
 
 Of course this file should be readable by the daemon but *security is up to you*. Be careful out there.
 
+### Selection of Symbols
+
+Create a file `~/.coincharts/config.yaml`
+
+With contents
+
+```yaml
+history_symbols:
+    - BITSTAMP_SPOT_BTC_USD
+    - BITSTAMP_SPOT_XRP_USD
+    - BITSTAMP_SPOT_ETH_USD
+    - BITSTAMP_SPOT_LTC_USD
+    - BITSTAMP_SPOT_BCH_USD
+```
+
+These symbols are specific to CoinAPI.io, but the above is a good start.
+
 ### Database changes
 
 Prepare your database schema by running the Django migration tool.

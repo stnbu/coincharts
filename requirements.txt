@@ -3,3 +3,4 @@ requests>=2.18
 python-dateutil>=2.7
 PyYAML>=3.13
 git+https://github.com/stnbu/mutils.git
+git+https://github.com/stnbu/svg_graph.git
